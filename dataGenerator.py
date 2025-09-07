@@ -1,152 +1,151 @@
-import pandas as pd, numpy as np
-import random,requests
-#from bs4 import BeautifulSoup
+
+# COVID-19 Synthetic Data Generator
+# Author: r-hedayati
+# License: MIT
+#
+# This script generates synthetic COVID-19 patient data for research and educational purposes.
+
+import pandas as pd
+import numpy as np
+import random
 from faker import Faker
 from random import randint
 
-# Data frame printing configuration
-desired_width=320
-pd.set_option('display.width', desired_width)
-pd.set_option('display.max_columns',12)
+
+# DataFrame display configuration (optional)
+pd.set_option('display.width', 320)
+pd.set_option('display.max_columns', 12)
+
 
 # Initialize Faker
-fake=Faker()
-Faker.seed(3210) # it is possible to ignore this if we want to have different dataset after each run
+fake = Faker()
+Faker.seed(3210)  # Remove or change seed for different data each run
 
-# Define list of symptoms and demographics
-names=[]
-#birthdate=[]
-age=[]
-gender=[]
-address=[]
-COVID_results=[]
-n_people=20
 
-# Create gender based on name
+# Number of synthetic patients to generate
+n_people = 20
+
+# Lists to store generated data
+names = []
+ages = []
+genders = []
+addresses = []
+COVID_results = []
+
+
+# Generate a random first name and gender
 def first_name_and_gender():
-   g = 'Male' if random.randint(0,1) == 0 else 'Female'
-   n = fake.first_name_male() if g=='Male' else fake.first_name_female()
-   return {'gender':g,'first_name':n}
-
-# Create required columns data
-for n in range(n_people):
-    person=first_name_and_gender()
-    names.append(person.get('first_name') + ' ' + fake.last_name())
-    gender.append(person.get('gender'))
-    address.append(fake.address())
-#    birthdate.append(fake.date_of_birth())
-    age.append(randint(18,100))
-    COVID_results.append(fake.boolean(chance_of_getting_true=100)) #we can change this number to our required portion
+    gender = 'Male' if random.randint(0, 1) == 0 else 'Female'
+    first_name = fake.first_name_male() if gender == 'Male' else fake.first_name_female()
+    return {'gender': gender, 'first_name': first_name}
 
 
-# Create symptoms based on desired distribution
-def symptomsGenerator(share,population):
-    testSymptom=[]
-    count=0
-    shareCount=round(share*population)
-    for i in range(0,population):
-        if count < shareCount:
-            testSymptom.append('yes')
-        else:
-            testSymptom.append('no')
-        count+=1
-    random.shuffle(testSymptom)
-    return testSymptom,shareCount
+# Generate demographic and COVID test data
+for _ in range(n_people):
+    person = first_name_and_gender()
+    names.append(f"{person['first_name']} {fake.last_name()}")
+    genders.append(person['gender'])
+    addresses.append(fake.address())
+    ages.append(randint(18, 100))
+    COVID_results.append(fake.boolean(chance_of_getting_true=100))  # Adjust chance as needed
 
-# function for creating related data, it gets inputSymptom as a symptoms on which outputSymptoms created
-# pop equals to the population of positive cases in inputSymptom
-# share defines the transition probability
-#positiveCases is the number of whole positive cases for each symptom
-def relatedSymptomsGenerator(inputSymptom,outputSymptom, pop, share, positiveCases):
-    cnt=0
-    countshareCNT=0
-    countshare = round(share * pop)
-    i=0
-    flag=0
-    while i>-1:
-        if ((positiveCases == countshareCNT) and (cnt == countshare)):
+
+
+# Generate symptoms based on probability share
+def symptoms_generator(probability, population):
+    symptom_list = ['yes'] * round(probability * population) + ['no'] * (population - round(probability * population))
+    random.shuffle(symptom_list)
+    return symptom_list, symptom_list.count('yes')
+
+
+# Generate related symptoms based on transition probability
+def related_symptoms_generator(input_symptom, output_symptom, pop, share, positive_cases):
+    cnt = 0
+    count_share_cnt = 0
+    count_share = round(share * pop)
+    i = 0
+    flag = 0
+    while i > -1:
+        if ((positive_cases == count_share_cnt) and (cnt == count_share)):
             break
-        if (countshare>positiveCases):
-            if (positiveCases==countshareCNT):
+        if (count_share > positive_cases):
+            if (positive_cases == count_share_cnt):
                 break
-        if cnt != countshare:
-            if inputSymptom[i]=='yes':
-                outputSymptom[i]='yes'
-                cnt+=1
-                countshareCNT+=1
-        if countshareCNT != positiveCases:
-            if inputSymptom[i]=='no':
-                outputSymptom[i]='yes'
-                countshareCNT+=1
-        if countshareCNT>positiveCases:
-            if (inputSymptom[i]=='no'):
-                outputSymptom[i]='no'
-                countshareCNT-=1
-        i+=1
-        if i==(n_people-1):
-            if(countshareCNT>positiveCases):
-                i=0
-                flag+=1
+        if cnt != count_share:
+            if input_symptom[i] == 'yes':
+                output_symptom[i] = 'yes'
+                cnt += 1
+                count_share_cnt += 1
+        if count_share_cnt != positive_cases:
+            if input_symptom[i] == 'no':
+                output_symptom[i] = 'yes'
+                count_share_cnt += 1
+        if count_share_cnt > positive_cases:
+            if (input_symptom[i] == 'no'):
+                output_symptom[i] = 'no'
+                count_share_cnt -= 1
+        i += 1
+        if i == (n_people - 1):
+            if (count_share_cnt > positive_cases):
+                i = 0
+                flag += 1
         if flag == 2:
             break
-    return outputSymptom, countshare
+    return output_symptom, count_share
 
-#based on population and their distribuation probability, it outputs the number of positive cases for each symptom
-def positiveCasesGenerator(shareList,pop):
-    positiveCases=[]
-    lengthShare=len(shareList)
-    for i in range(0,lengthShare):
-        positiveCases.append(round(shareList[i]*pop))
-    return positiveCases
 
-# Creating empty list for each symptom
-testCough,testFatigue, testBreath, testSoreThroat,testHeadache\
-    ,testMylagia,testChills,testNausea,testNasal,testDiarrhea=(['no']*n_people for i in range(10))
+# Calculate number of positive cases for each symptom
+def positive_cases_generator(share_list, pop):
+    return [round(share * pop) for share in share_list]
+
+
+# Empty lists for symptoms
+test_cough, test_fatigue, test_breath, test_sore_throat, test_headache, test_mylagia, test_chills, test_nausea, test_nasal, test_diarrhea = (['no'] * n_people for _ in range(10))
 
 
 
-# the probability of each symptom based on WHO report
-#"0.fever":0.879,"1.cough": 0.677,"2.fatigue":0.381,"3.breath":0.186,"4.sore throat":0.139,
-#                    "5.headache":0.136,"6.myalgia":0.148,"7.chills":0.114,"8.nausea":0.05,"9.nasal":0.048,"10.diarrhea":0.037}
-positiveCasesShare=[0.879, 0.677, 0.381, 0.186, 0.139, 0.136, 0.148, 0.114, 0.05, 0.048, 0.037]
-positiveCasesList=positiveCasesGenerator(positiveCasesShare,n_people)
 
-#creating symptoms which we dont have their transition probability by symptomsGenerator function:
-
-fatigue=symptomsGenerator(positiveCasesShare[2],n_people)
-shortBreath=symptomsGenerator(positiveCasesShare[3],n_people)
-chills=symptomsGenerator(positiveCasesShare[7],n_people)
-nasal=symptomsGenerator(positiveCasesShare[9],n_people)
-
-# creating symptoms which we have their transition probability:
-fever=symptomsGenerator(positiveCasesShare[0],n_people)
-cough=relatedSymptomsGenerator(fever[0],testCough,18,0.78,positiveCasesList[1])
-soreThroat=relatedSymptomsGenerator(cough[0],testSoreThroat,cough[1],0.84,positiveCasesList[4])
-headache=relatedSymptomsGenerator(cough[0],testHeadache,cough[1],0.84,positiveCasesList[5])
-mylagia=relatedSymptomsGenerator(cough[0],testMylagia,cough[1],0.84,positiveCasesList[6])
-nausea=relatedSymptomsGenerator(soreThroat[0],testNausea,soreThroat[1],0.65,positiveCasesList[8])
-diarrhea=relatedSymptomsGenerator(nausea[0],testDiarrhea,nausea[1],1,positiveCasesList[10])
+# Symptom probabilities (WHO report)
+symptom_probabilities = [0.879, 0.677, 0.381, 0.186, 0.139, 0.136, 0.148, 0.114, 0.05, 0.048, 0.037]
+positive_cases_list = positive_cases_generator(symptom_probabilities, n_people)
 
 
+# Symptoms without transition probability
+fatigue = symptoms_generator(symptom_probabilities[2], n_people)
+short_breath = symptoms_generator(symptom_probabilities[3], n_people)
+chills = symptoms_generator(symptom_probabilities[7], n_people)
+nasal = symptoms_generator(symptom_probabilities[9], n_people)
 
-# Create a dataframe for better handling in ML models
-variables=[names,gender,age,fever[0],cough[0],soreThroat[0],headache[0],mylagia[0],nausea[0],diarrhea[0],fatigue[0],shortBreath[0],chills[0],nasal[0],COVID_results]
-df=pd.DataFrame(variables).transpose()
-df.columns=["name","gender","Age","fever","cough","sore throat",'headache','mylagia',"nausea","diarrhea","fatigue","short of breath","chills", "nasal","COVID19 Test"]
-#print(df.head())
+
+# Symptoms with transition probability
+fever = symptoms_generator(symptom_probabilities[0], n_people)
+cough = related_symptoms_generator(fever[0], test_cough, fever[1], 0.78, positive_cases_list[1])
+sore_throat = related_symptoms_generator(cough[0], test_sore_throat, cough[1], 0.84, positive_cases_list[4])
+headache = related_symptoms_generator(cough[0], test_headache, cough[1], 0.84, positive_cases_list[5])
+mylagia = related_symptoms_generator(cough[0], test_mylagia, cough[1], 0.84, positive_cases_list[6])
+nausea = related_symptoms_generator(sore_throat[0], test_nausea, sore_throat[1], 0.65, positive_cases_list[8])
+diarrhea = related_symptoms_generator(nausea[0], test_diarrhea, nausea[1], 1, positive_cases_list[10])
+
+
+
+
+# Create DataFrame for ML models or analysis
+columns = [
+    "name", "gender", "age", "fever", "cough", "sore_throat", "headache", "mylagia",
+    "nausea", "diarrhea", "fatigue", "short_of_breath", "chills", "nasal", "COVID19_test"
+]
+data = list(zip(
+    names, genders, ages, fever[0], cough[0], sore_throat[0], headache[0], mylagia[0],
+    nausea[0], diarrhea[0], fatigue[0], short_breath[0], chills[0], nasal[0], COVID_results
+))
+df = pd.DataFrame(data, columns=columns)
 df.to_csv('positiveCases.csv', index=False)
 
 
-# we can implement the negative test cases like positive ones.
-negativeCaseShare=[]
-covid_result_negative=['no']*n_people
-#lossTasteN=symptomsGenerator(0.647,n_people)
-fatigueN=symptomsGenerator(0.298,n_people)
-shortBreathN=symptomsGenerator(0.152,n_people)
-feverN=symptomsGenerator(0.343,n_people)
-coughN=symptomsGenerator(0.567,n_people)
-diarrheaN=symptomsGenerator(0.259,n_people)
-headacheN=symptomsGenerator(0.178,n_people) #Delirium
-#skipped meals
-#abdomina pain
-#chest pain
+
+# To generate negative test cases, repeat the above process with adjusted probabilities and COVID_results set to 'no'.
+# Example:
+# covid_result_negative = ['no'] * n_people
+# fatigueN = symptoms_generator(0.298, n_people)
+# ...
+# Extend as needed for your use case.
